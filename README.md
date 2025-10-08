@@ -301,11 +301,11 @@ Now that we’ve made changes, let’s go back to the top kernel source director
 
 At this point you could simply build the kernel again and you’d be done. 
 But I’m extra, and I want to include support for a bunch of extra stuff, namely:
--Aircrack-ng drivers for rtl88xxau/rtl8188eus – this shouldn’t be too difficult
--Realtek drivers for rtl88x2bu and rtl8188fu – as long as we build these as modules, they should be fine
--Mediatek drivers mt76 (mt76x0u and mt76x2u) – these are a bit trickier as they were introduced upstream in 4.19, and this is a 4.14 kernel. However, it’s not as tricky as you might think
--WireGuard kernel level support – this one is quite easy, it’s just enabling it in the kernel configuration
--Docker support – should be easy, as it has a similar Kconfig as we just used for the Nethunter changes
+- Aircrack-ng drivers for rtl88xxau/rtl8188eus – _this shouldn’t be too difficult_
+- Realtek drivers for rtl88x2bu and rtl8188fu – _as long as we build these as modules, they should be fine_
+- Mediatek drivers mt76 (mt76x0u and mt76x2u) – _these are a bit trickier as they were introduced upstream in 4.19, and this is a 4.14 kernel. However, it’s not as tricky as you might think_
+- WireGuard kernel level support – _this one is quite easy, it’s just enabling it in the kernel configuration_
+- Docker support – _should be easy, as it has a similar Kconfig as we just used for the Nethunter changes_
 
 ### Being Extra 
 ![39](/images/39.png "39")
@@ -429,5 +429,3 @@ And when some ungrateful jabroni with an unwashed asshole responds to your post 
 Good night, y’all.
 
 --Akabul0us
-
--Akabulous  
