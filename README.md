@@ -4,7 +4,7 @@
 
 The biggest hurdle for most people who want to set up a Nethunter device is the kernel requirement. Unless your device already has a prebuilt (and maintained) kernel, then you will be told to build one yourself. There is a lot of documentation on this process already, but in my experience it can be difficult to know what applies in your case and what does not.
 
-This problem is confounded by ~~assholes~~ people who write guides with clickbait-y titles like“Build a Nethunter kernel for ANY Android device!”or with false promises like“Learn how to compile a Nethunter kernel in ten minutes!”It is also an unfortunate reality of the internet in 2025 that many ~~idiots~~ people think that ChatGPT or other large language models have authoritative answers to their questions, when all that those models really have is information they scraped from the aforementioned assholes.
+This problem is confounded by ~~assholes~~ people who write guides with clickbait-y titles like “Build a Nethunter kernel for ANY Android device!” or with false promises like “Learn how to compile a Nethunter kernel in ten minutes!” It is also an unfortunate reality of the internet in 2025 that many ~~idiots~~ people think that ChatGPT or other large language models have authoritative answers to their questions, when all that those models really have is information they scraped from the aforementioned assholes.
 
 I am writing this guide as thoroughly and honestly as I possibly can. It is **not** intended to be the **only **guide you will need for this process, however – surely you will have questions that this document cannot answer. I would like to encourage you to search for answers to these questions **in the relevant software documentation**, and **NOT** on YouTube or from ChatGPT.
 
@@ -13,14 +13,11 @@ I am writing this guide as thoroughly and honestly as I possibly can. It is **no
 Before you begin ANY of this process, you should have ALREADY:
 
 - Unlocked the bootloader on your device
-- Installed an AOSP (Android Open-Source Project) based ROM (LineageOS, crDroid, etc)
-*- (optional: installed a custom recovery)*
-- Rooted your phone with Magisk 28.1 + enabled Zygisk
-*- (if you have a newer version of Magisk, reboot to recovery and flash Magisk 28.1)*
+- Installed an AOSP (Android Open-Source Project) based ROM (LineageOS, crDroid, etc) *(optional: installed a custom recovery)*
+- Rooted your phone with Magisk ~~28.1~~ + enabled Zygisk *(edited to mention: with the newest versions of NHTerm, you can now safely update Magisk to the newest version)*
 - Flashed the kali-nethunter-(year.release-number)-generic-arm64-minimal.zip in Magisk
-- Check that the Nethunter app + Nethunter terminal app work
-- Updated all installed packages `apt update && apt upgrade -y`
-*- (optional: added metapackages)*
+- Check that the Nethunter app + Nethunter Terminal app work
+- Updated all installed packages `apt update && apt upgrade -y` *(optional: added metapackages)*
 - Flashed the wireless firmware for Nethunter Magisk module
 
 **In order to complete this process, you will need:**
@@ -71,13 +68,15 @@ On my laptop: `nc` (netcat) `-l` (listen for incoming connections) `-p` (port) `
 
 On the phone: `zcat` (like the command `cat` for concatenate but for gzipped files) `/proc/config.gz` (the kernel configuration that the currently running kernel was built with) `|` (send output from that process as input to next process) `nc` (netcat again) `192.168.1.42` (my laptop’s local IP address) `4545` (port I set before)
 
-As for /proc/version, it might not be so necessary to send that file, as all that we really need is the information on which version of clang/ld.lld was used to compile it. So we can simply run `cat /proc/version`, and have a look:
+While this ought to give you the .config file that was used to build your currently-running kernel, this isn't always the case. Some more modern devices/newer ROM builds will refuse to boot if the config saved in `/proc/config.gz` does not match the .config that was used to build the stock kernel. Luckily, that's the only check that takes place (not something much harder to defeat like a SHA256 checksum of the entire kernel itself), so some clever folks have come up with a way of spoofing the file in `/proc/config.gz` to match the stock kernel, in spite of their modifications. If you're unsure of whether the file in your device is real or spoofed, you can execute `zcat /proc/config.gz | head` and then `uname -r`. If the release numbers don't match, then the file in `/proc` was spoofed. In that case, while you can still proceed with this guide, you may want to run `diff` to compare the extracted config with some of the files you find in your kernel source's `arch/arm64/configs` directory.
+
+As for `/proc/version`, it might not be so necessary to send that file, as all that we really need is the information on which version of clang/ld.lld was used to compile it. So we can simply run `cat /proc/version`, and have a look:
 
 ![03](/images/03.png "03")
 
 Uh oh! Looks like whoever built this kernel did a bit of an “oopsie” and their Makefile recorded all of the -CFLAGS they ran with clang, but not the version of Clang. However, we can see that they used a prebuilt Android toolchain, and that they used ld.lld version 19.0.1. 
 
-Here’s a slightly more helpful image. The first output is from /proc/version before modifying, building and installing a new kernel on Samsung A51. The second output is from /proc/version currently.
+Here’s a slightly more helpful image. The first output is from `/proc/version` before modifying, building and installing a new kernel on Samsung A51. The second output is from /proc/version currently.
 
 ![04](/images/04.png "04")
 
@@ -91,7 +90,7 @@ In this case, that was Neutron clang 18.0.0git, which was quite easy to find:
 
 And would you look at that, the md5sums match and everything. 
 
-Just for fun, let’s have a quick look at the /proc/version string from a considerably older device, Samsung J7 (2016), codename j7xelte:
+Just for fun, let’s have a quick look at the `/proc/version` string from a considerably older device, Samsung J7 (2016), codename j7xelte:
 
 ![06](/images/06.png "06")
 
@@ -131,7 +130,7 @@ Relevant comic from xkcd:
 
 ![08](/images/08.png "08")
 
-Back to the example I’ll be compiling today (surya), I happened to save the /proc/version information from another kernel, which read:
+Back to the example I’ll be compiling today (surya), I happened to save the `/proc/version` information from another kernel, which read:
 
 ![09](/images/09.png "09")
 
@@ -170,7 +169,7 @@ The syntax is `git submodule add URL directory/`
 
 ![16](/images/16.png "16")
 
-Remember, for a very clean commit history we want to run git add + git commit after each change.
+Remember, for a very clean commit history we want to run `git add .` and `git commit -a` after each change.
 ![17](/images/17.png "17")
 
 I’m not going to run `git push` just yet, but when I eventually do, it will update all of the commits.
@@ -201,7 +200,7 @@ Wait. Looks like this toolchain has some problems. So I have decided to deinit t
 Then extract into a newly created toolchain/ directory (forgetting the syntax for extracting .tar.zst files at first)
 ![22](/images/22.png "22")
 
-And then I add this directory to the .gitignore file.
+And then I add this directory to the `.gitignore` file.
 
 Now when I run this:
 
@@ -211,7 +210,7 @@ It works, opening up the nconfig menu:
 
 ![24](/images/24.png "24")
 
-Many tutorials will tell you to use menuconfig, but I prefer nconfig because 1) it looks nicer 2) it doesn’t have the same tendency menuconfig does to not load because it can’t find the ncurses libraries you already installed. In any event, this is just a test kernel, so we can load .config and save it (again as .config) and we’re done for now.
+Many tutorials will tell you to use menuconfig, but I prefer nconfig because 1) it looks nicer 2) it doesn’t have the same tendency menuconfig does to not load because it can’t find the ncurses libraries you already installed. In any event, this is just a test kernel, so we can load `.config` and save it (again as `.config`) and we’re done for now.
 And now we try to build Image.gz, and…
 
 ![25](/images/25.png "25")
@@ -220,7 +219,7 @@ Our first error! Hooray!
 
 According to [this](https://bbs.archlinux.org/viewtopic.php?id=305296 "this"), this is because an Arch update broke something. 
 
-Although Arch taketh away, Arch also giveth, in this case in the form of the AUR package libxml-legacy. So I installed that, ran `make` again, and this time:
+Although Arch taketh away, Arch also giveth, in this case in the form of the AUR package `libxml-legacy`. So I installed that, ran `make` again, and this time:
 
 ![26](/images/26.png "26")
 
@@ -238,7 +237,7 @@ There’s two ways you can do this:
 1. Make it from scratch
 2. Take an already-existing kernel zip for your device and simply update the kernel image inside with your newly compiled file
    
-I prefer number 2 as it’s far less effort. It also has the benefit of allowing us to see what our device needs to have in a kernel zip. This might be an uncompressed image called `Image`, it might be the `Image.gz` we created and nothing more, it might be `Image.gz-dtb` (a combined device tree/kernel image – these are less common nowadays), or it might be `Image.gz` and also `dtbo.img`.
+I prefer number 2 as it’s far less effort. It also has the benefit of allowing us to see what our device needs to have in a kernel zip. This might be an uncompressed image called `Image`, it might be the `Image.gz` we created and nothing more, it might be `Image.gz-dtb` (a combined device tree/kernel image – these are less common nowadays, but if your device is expecting one, then you'll have to enable "Build a concatenated Image.gz-dtb" in your kernel configuration), or it might be `Image.gz` and also `dtbo.img`.
 
 ![28](/images/28.png "28")
 
@@ -271,7 +270,7 @@ But that can wait. Now, finally, we have come to:
 
 ### Turning the Kernel into a Nethunter Kernel
 
-Time to add some submodules. First, [this one](https://github.com/cyberknight777/android_kernel_nethunter "this one") which comes with very easy to follow instructions.
+Time to add some submodules. First, [this one](https://github.com/cyberknight777/android_kernel_nethunter "this one") which comes with very easy to follow instructions. (Edit: It also now contains the CAN subsystem kernel symbols, as my pull request adding them was merged, though you won't see that in the screenshots below).
 
 ![33](/images/33.png "33")
 
