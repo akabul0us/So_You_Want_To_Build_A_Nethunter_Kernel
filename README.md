@@ -1,4 +1,4 @@
-## So You Want To Make A Nethunter Kernel
+## So You Want To Build A Nethunter Kernel
 
 ### Introduction
 
@@ -6,19 +6,19 @@ The biggest hurdle for most people who want to set up a Nethunter device is the 
 
 This problem is confounded by ~~assholes~~ people who write guides with clickbait-y titles like “Build a Nethunter kernel for ANY Android device!” or with false promises like “Learn how to compile a Nethunter kernel in ten minutes!” It is also an unfortunate reality of the internet in 2025 that many ~~idiots~~ people think that ChatGPT or other large language models have authoritative answers to their questions, when all that those models really have is information they scraped from the aforementioned assholes.
 
-I am writing this guide as thoroughly and honestly as I possibly can. It is **not** intended to be the **only **guide you will need for this process, however – surely you will have questions that this document cannot answer. I would like to encourage you to search for answers to these questions **in the relevant software documentation**, and **NOT** on YouTube or from ChatGPT.
+I am writing this guide as thoroughly and honestly as I possibly can. It is **not** intended to be the **only** document that you will need to read for this process, however – surely you will have questions that this document cannot answer. I would like to encourage you to search for answers to these questions **in the relevant software documentation**, and **NOT** on YouTube or from ChatGPT.
 
 ### Requirements
 
-Before you begin ANY of this process, you should have ALREADY:
+Before you begin **ANY** of this process, you should have ALREADY:
 
 - Unlocked the bootloader on your device
 - Installed an AOSP (Android Open-Source Project) based ROM (LineageOS, crDroid, etc) *(optional: installed a custom recovery)*
-- Rooted your phone with Magisk ~~28.1~~ + enabled Zygisk *(edited to mention: with the newest versions of NHTerm, you can now safely update Magisk to the newest version)*
-- Flashed the kali-nethunter-(year.release-number)-generic-arm64-minimal.zip in Magisk
+- Rooted your phone with [Magisk 28.1](https://github.com/topjohnwu/Magisk/releases/download/v28.1/Magisk-v28.1.apk) + enabled Zygisk *(EDIT: with the newest versions of NHTerm, you can now safely update Magisk to the [newest version](https://github.com/topjohnwu/Magisk/releases/download/v30.6/Magisk-v30.6.apk) , but if you encounter problems when opening NHTerm, revert to 28.1)*
+- Flashed the [kali-nethunter-2025.4-generic-arm64-minimal.zip](https://kali.download/nethunter-images/kali-2025.4/kali-nethunter-2025.4-generic-arm64-minimal.zip) in Magisk *(newest at time of writing)*
 - Check that the Nethunter app + Nethunter Terminal app work
 - Updated all installed packages `apt update && apt upgrade -y` *(optional: added metapackages)*
-- Flashed the wireless firmware for Nethunter Magisk module
+- Flashed the [wireless firmware for Nethunter](https://github.com/akabul0us/So_You_Want_To_Build_A_Nethunter_Kernel/raw/refs/heads/main/Wireless_Firmware_for_Nethunter.zip) Magisk module
 
 **In order to complete this process, you will need:**
 
@@ -28,7 +28,7 @@ Before you begin ANY of this process, you should have ALREADY:
 - A good internet connection
 *- (semi-optional: an account on GitHub or GitLab. This will make it easier for you to track your changes, and also to distribute your kernel if you are successful in building it. If you do not make an account, then do not expect to share your kernel with anyone else – nobody is interested in a non-GPL compliant kernel image that does not come with source code!)*
 - Basic knowledge of navigating the Linux command line (`cd, rm, ls, mkdir, find, diff, grep,` etc)
-- Basic knowledge of using a command-line based editor (vim for the cool kids, otherwise nano)
+- Basic knowledge of using a command-line based editor (`vim` for the cool kids, otherwise `nano`)
 - Basic knowledge of C programming language/Makefile syntax
 - Your distribution’s build-from-source metapackage installed (`build-devel` on Arch-based distros, `build-essential` on Debian based) – I would also recommend you install Perl + Python3 as some kernel makefiles require these
 
@@ -51,7 +51,7 @@ The information in this guide is based on my experience modifying 4.14.x kernels
 A good way to find repos containing the kernel source for your device is to use its codename. Every Android has one, although some manufacturers (i.e. OnePlus) have a bit more fun with this than others (i.e. Samsung). The codename for my Xiaomi Poco X3 NFC is "surya", whereas the codename for my Samsung A51 is "SM-A515F". Typically, kernel source repos follow the naming convention
 ` android_kernel_MANUFACTURER_CODENAME `
 where the manufacturer is the parent company, i.e. `android_kernel_xiaomi_surya`, not `android_kernel_poco_surya`. 
-However, there may also be repos based around the SoC (system-on-a-chip) for your device, sometimes “unified” to include source files for other devices with the same SoC. This is the case for the Samsung I mentioned, whose source repo is `called android_kernel_samsung_exynos9611`. Have a look through github/gitlab and see what you can find.
+However, there may also be repos based around the SoC (system-on-a-chip) for your device, sometimes “unified” to include source files for other devices with the same SoC. This is the case for the Samsung I mentioned, whose source repo is called `android_kernel_samsung_exynos9611`. Have a look through github/gitlab and see what you can find.
 
 For the purposes of this guide, I will be using the latest LineageOS 22.2 (built 2025-08-04) on surya, therefore, I will want to clone the kernel source from the LineageOS repo. But before I do that, I want to copy two files from my device to the computer I will be using to build the kernel: `/proc/config.gz` and `/proc/version`.
 I could copy the first file, `/proc/config.gz`, to `/sdcard`, pull it from the device with ADB, gunzip it, and rename it. But that seems like a lot of steps, so what I did instead was this:
@@ -76,7 +76,7 @@ As for `/proc/version`, it might not be so necessary to send that file, as all t
 
 Uh oh! Looks like whoever built this kernel did a bit of an “oopsie” and their Makefile recorded all of the -CFLAGS they ran with clang, but not the version of Clang. However, we can see that they used a prebuilt Android toolchain, and that they used ld.lld version 19.0.1. 
 
-Here’s a slightly more helpful image. The first output is from `/proc/version` before modifying, building and installing a new kernel on Samsung A51. The second output is from /proc/version currently.
+Here’s a slightly more helpful image. The first output is from `/proc/version` before modifying, building and installing a new kernel on Samsung A51. The second output is from `/proc/version` currently.
 
 ![04](/images/04.png "04")
 
@@ -84,7 +84,7 @@ Notice anything? (No, not my bizarre username and hostname).
 
 The best trick to picking a toolchain to use is to use the **EXACT toolchain** that compiled the currently running kernel. 
 
-In this case, that was Neutron clang 18.0.0git, which was quite easy to find: 
+In this case, that was [Neutron clang 18.0.0git](https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/09092023/neutron-clang-09092023.tar.zst), which was quite easy to find: 
 
 ![05](/images/05.png "05")
 
@@ -116,7 +116,7 @@ Aarch64, also known as arm64, is the architecture nearly every Android device us
 
 Moving on to the next part: “Linux.” Self-explanatory. It’s a Linux kernel.
 
-But the last part of these “triples” is worth explaining, at least briefly, because it’s such a convoluted mess and each compiler that uses “triples” (GCC, Rust, Go, LLVM) does so slightly differently. “Android,” the first example, makes sense, but what is “androideabi?” EABI stands for “embedded application binary interface”, but you really don’t have to worry too much about that – let’s just consider EABI to be the “base” third value. You’ll also see “gnueabi”, which makes a bit more sense now – the GNU implementation of the EABI, right? And you might also see “gnueabihf.” HF stands for “hard float,” and if you want to know about how ARM implemented an on-chip solution for floating point integer operation, go read a Wikipedia article.
+But the last part of these “triples” is worth explaining, at least briefly, because it’s such a convoluted mess and each compiler that uses “triples” (GCC, Rust, Go, LLVM) does so slightly differently. “Android,” the first example, makes sense, but what is “androideabi?” EABI stands for “embedded application binary interface”, but you really don’t have to worry too much about that – let’s just consider EABI to be the “base” third value. You’ll also see “gnueabi”, which makes a bit more sense now – the GNU implementation of the EABI, right? (What this really refers to is GNU's C library, glibc, which is why you will also see triples like arm-linux-musleabi when building against an alternative C library like musl). You might also see “gnueabihf.” HF stands for “hard float,” and if you want to know about how ARM implemented an on-chip solution for floating point integer operations, [go read a Wikipedia article](https://en.wikipedia.org/wiki/ARM_architecture_family#Floating-point_(VFP)). 
 
 Here’s what we need to know:
 
@@ -355,7 +355,7 @@ And now we’re ready to make nconfig again! …almost. First, commit and push c
 
 ![48](/images/48.png "48")
 
-A note about the out-of-tree Realtek USB drivers we’ve added into the kernel: They kind of suck. If you try to build more than one of them inline, you’ll get errors at linking time. A long-standing solution is to build just one (1) inline and the rest as modules. The Mediatek drivers, however, can be built inline with no trouble.
+A note about the out-of-tree Realtek USB drivers we’ve added into the kernel: [They kind of suck](https://github.com/morrownr/USB-WiFi/issues/314). If you try to build more than one of them inline, you’ll get errors at linking time. A long-standing solution is to build just one (1) inline and the rest as modules. The Mediatek drivers, however, can be built inline with no trouble.
 
 I wound up enabling a whole bunch of other things, if you’d like to see the full diff I put it here: [here](https://pastebin.com/raw/YYpxUU4F "here") but anyway, let’s build!
 
