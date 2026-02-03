@@ -237,7 +237,7 @@ There’s two ways you can do this:
 1. Make it from scratch
 2. Take an already-existing kernel zip for your device and simply update the kernel image inside with your newly compiled file
    
-I prefer number 2 as it’s far less effort. It also has the benefit of allowing us to see what our device needs to have in a kernel zip. This might be an uncompressed image called `Image`, it might be the `Image.gz` we created and nothing more, it might be `Image.gz-dtb` (a combined device tree/kernel image – these are less common nowadays, but if your device is expecting one, then you'll have to enable "Build a concatenated Image.gz-dtb" in your kernel configuration), or it might be `Image.gz` and also `dtbo.img`.
+I prefer number 2 as it’s far less effort. It also has the benefit of allowing us to see what our device needs to have in a kernel zip. This might be an uncompressed image called `Image`, it might be the `Image.gz` we created and nothing more, it might be `Image.gz-dtb` (a combined device tree/kernel image – these are less common nowadays, but if your device is expecting one, then you'll have to enable "Build a concatenated Image.gz-dtb" in your kernel configuration), or it might be `Image.gz`, `dtbo.img`, and/or `dtb.img`.
 
 ![28](/images/28.png "28")
 
@@ -248,7 +248,7 @@ But we won’t be doing that, don’t worry, we’re just borrowing their AnyKer
 
 ![29](/images/29.png "29")
 
-And I edited the anykernel.sh script to change the kernel name string as well. Now let’s overwrite the `Image.gz` from that zip with our new one 
+And I edited the `anykernel.sh` script to change the kernel name string as well. Now let’s overwrite the `Image.gz` from that zip with our new one 
 
 
 ![30](/images/30.png "30")
@@ -265,7 +265,52 @@ It’s much easier to keep track of kernel zips when you include time and date s
 
 ![32](/images/32.png "32")
 
-The good news is that it flashed without any trouble, the bad news is I’m going to have to fix that Makefile that creates such an ugly `/proc/version`.
+However, in the interest of being thorough (and of depending on Telegram kernels as little as possible), I'll tell you how to make your own `dtb.img` and/or `dtbo.img` files, as the documentation regarding this is painfully inadequate.
+
+There are two AOSP programs that exist for this purpose. One of them, `mkdtboimg`, is written in Python, making it easy to simply [https://android.googlesource.com/platform/system/libufdt/+/master/utils/src/mkdtboimg.py](download and run mkdtboimg.py) from the official AOSP website. However, you may also need the other one, `mkdtimg`, [https://android.googlesource.com/platform/system/libufdt/+/refs/heads/main/utils/src/](which is written in C and shipped without a Makefile). [https://android.googlesource.com/platform/system/libufdt/+/refs/tags/android-9.0.0_r47/utils/README.md](According to the documentation), the `Android.bp` files are sufficient -- you just have to checkout the entire AOSP code so you can run the commands they list there. I find this to be completely insane, so I took the Makefile someone else had made long ago to build this tool on its own, updated the source files with the latest version, and then static-PIE built it against Musl. You can download this binary (which will run on any x86_64 Linux computer, like the one you're using to build the kernel) from [https://github.com/akabul0us/mkdtimg/raw/refs/heads/static/mkdtimg](here), or build it yourself from [https://github.com/akabul0us/mkdtimg](the source code).
+
+Now here's the tricky part: the `.dtbo` files that are produced during a kernel build are not going to be convertible to `dtb.img`/`dtbo.img` files without a little extra effort. Android needs the call to `dtc` to include the flag `-a 64`. Since we're already calling `DTC_EXT=/usr/bin/dtc' to force the Makefile to use our nice updated DTC from our package manager and not the broken one found in many kernels, it isn't that difficult to simply stick that command inside single quotes and add the flag. You can simply pass `DTC_EXT='/usr/bin/dtc -a 64'`. In my case, however, I like to make (and test) `build.sh` scripts for all of the kernels I maintain, so that even without reading this guide, anyone, no matter how n00b, can build their own from source. As I was struggling with layers upon layers of single-quote and double-quote bash logic, I found a simple, if inelegant, solution, which ensures DTC is called with the correct flag: a wrapper script.
+
+I simply made an executable file called `dtc` in my kernel's top-level directory, which contained the following lines:
+
+`#!/bin/sh`
+`exec /usr/bin/dtc -a 64 $@`
+
+Then I pointed `DTC_EXT=` to that file, and that took care of it.
+
+You might be wondering, "What `.dtbo` files? My kernel builds never generate those!" in which case you should check that this kernel symbol is enabled:
+
+![61](/images/61.png "61")
+
+So, how do we use these tools? The first thing I did was to analyze the `dtb.img` and `dtbo.img` files I found in other kernel zips to see what kind of files they were. (I know, I know, we don't want to depend on the weird custom ROM scene kernels for our own, but this *is* worth checking). The command `file dtb.img` returned:
+
+`dtb.img: Device Tree Blob version 17, size=345849, boot CPU=0, string block size=31481, DT structure block size=314312`
+
+which is (almost) exactly the same result I get when I run `file ../arch/arm64/boot/dts/qcom/sdmmagpie.dtb`:
+
+`../arch/arm64/boot/dts/qcom/sdmmagpie.dtb: Device Tree Blob version 17, size=345856, boot CPU=0, string block size=31481, DT structure block size=314312` 
+
+That slight difference was worrying to me, until I ran `diff <(strings dtb.img) <(strings ../arch/arm64/boot/dts/qcom/sdmmagpie.dtb)` and found they contained the exact same things. 
+
+As for `dtbo.img`, we don't get much help from `file`: 
+
+`dtbo.img: data`
+
+But here's where we can use either `mkdtimg` or `mkdtboimg.py` to analyze it. When I run `mkdtimg dump dtbo.img`, I get:
+ 
+![61](/images/62.png "62")
+
+So I know when creating my own, I should pass either
+
+`mkdtimg create dtbo.img --page_size=4096 ../arch/arm64/boot/dts/qcom/sdmmagpie-idp-overlay.dtbo`
+
+or
+
+`mkdtboimg create --page_size=4096 dtbo.img ../arch/arm64/boot/dts/qcom/sdmmagpie-idp-overlay.dtbo`
+
+Both commands produce identical files. You can also run `mkdtimg dump dtbo.img` afterwards and compare the values to the other file. If you need to include more than one `.dtbo` file in your image, simply append its path at the end of either command.
+
+Now back to the test kernel we created. The good news is that it flashed without any trouble, the bad news is I’m going to have to fix that Makefile that creates such an ugly `/proc/version`.
 But that can wait. Now, finally, we have come to:
 
 ### Turning the Kernel into a Nethunter Kernel
